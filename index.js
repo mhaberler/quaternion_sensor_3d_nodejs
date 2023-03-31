@@ -10,20 +10,32 @@ app.use(express.static(__dirname + '/public'));
 app.listen(server_port, () => console.log(`App listening on port ${server_port}!`))
 
 /**************************************************************************
- Reads quaternion data from serial port and sends it over the websocket
+ Reads quaternion data from imud and sends it over the websocket
 **************************************************************************/
 
-const SerialPort = require('serialport')
-const port = new SerialPort('COM12', { baudRate: 115200 })
+const net = require('net');
+const readline = require('readline');
 
-const Readline = require('@serialport/parser-readline')
-const parser = port.pipe(new Readline({ delimiter: '\n' }))
+const client = net.createConnection({ port: 4000, host: '10.0.0.211' });
 
-parser.on('data', function(data) {
+const rl = readline.createInterface({
+  input: client,
+});
+
+rl.on('line', (json) => {
+  sample = JSON.parse(json);
   if (ws != null) {
-     ws.send(data);
+    obj = {
+      quat_w: sample.orientation.w,
+      quat_x: sample.orientation.x,
+      quat_y: sample.orientation.y,
+      quat_z: sample.orientation.z
+    };
+
+    json = JSON.stringify(obj);
+    ws.send(json);
   }
-})
+});
 
 /**************************************************************************
  Websocket server that communicates with browser
