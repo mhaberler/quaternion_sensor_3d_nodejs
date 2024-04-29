@@ -6,24 +6,21 @@
         body {
             margin: 0;
         }
-        
+
         canvas {
             display: block;
         }
     </style>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js" type="text/javascript"></script>
 </head>
 
 <body>
     <script src="js/three.js"></script>
-    <script>
+    <script type="text/javascript">
         var camera, scene, renderer;
         var geometry, material, mesh;
-        
-        init();
-        animate();
 
-        function init() 
-        {
+        function init() {
             camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 10);
             camera.position.z = 1;
 
@@ -42,21 +39,49 @@
             document.body.appendChild(renderer.domElement);
         }
 
-        function animate() 
-        {
+        function animate() {
             requestAnimationFrame(animate);
             renderer.render(scene, camera);
         }
 
-        var exampleSocket = new WebSocket("ws://127.0.0.1:8080/");
-        
-        exampleSocket.onmessage = function(event) {
-            var jsonObj = JSON.parse(event.data);
-            
-            // You'll need to edit the order of the quaternions below so that the 3D object matches up with your sensor.
-            var targetQuaternion = new THREE.Quaternion(jsonObj.quat_z, jsonObj.quat_y, jsonObj.quat_w, jsonObj.quat_x);       
-            mesh.quaternion.slerp(targetQuaternion, 1);
+        function mqtt_setup() {
+            const clientId = 'mqttjs_' + Math.random().toString(16).substr(2, 8)
+            // const host = 'ws://' + location.host + ':81';
+            const host = 'ws://172.16.0.207:81';
+
+            const options = {
+                keepalive: 60,
+                clientId: clientId,
+                protocolId: 'MQTT',
+                protocolVersion: 4,
+                clean: true,
+                reconnectPeriod: 1000,
+                connectTimeout: 30 * 1000,
+            }
+            console.log('Connecting mqtt client');
+            const client = mqtt.connect(host, options)
+            client.on('error', (err) => {
+                console.log('Connection error: ', err)
+                client.end()
+            })
+            client.on('reconnect', () => {
+                console.log('Reconnecting...')
+            })
+            client.on('connect', () => {
+                console.log(`Client connected: ${clientId}`)
+                client.subscribe('quat', { qos: 0 })
+            })
+            client.on('message', (topic, message, packet) => {
+                var jsonObj = JSON.parse(message.toString());
+                var targetQuaternion = new THREE.Quaternion(jsonObj.z, jsonObj.y, jsonObj.w, jsonObj.x);
+                mesh.quaternion.slerp(targetQuaternion, 1);
+                // console.log(`Received Message: ${message.toString()} On topic: ${topic}`)
+            })
         }
+        init();
+        mqtt_setup();
+        animate();
+
     </script>
 </body>
 
